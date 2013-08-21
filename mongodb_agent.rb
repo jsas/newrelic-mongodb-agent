@@ -2,26 +2,24 @@
 require "rubygems"
 require "bundler/setup"
 require "newrelic_plugin"
-require "mongo"
-
-include Mongo
+require "json"
+require "net/http"
 
 module NewRelic::MongodbAgent
 
   class Agent < NewRelic::Plugin::Agent::Base
-    agent_guid "com.mongohq.mongo-agent"
-    agent_config_options :endpoint, :username, :password, :database, :port, :agent_name, :ssl
+    agent_guid "com.dermtap.mongo-agent"
+    agent_config_options :endpoint, :username, :password, :database, :port, :agent_name
     agent_human_labels("MongoDB") { "#{agent_name}" }
     agent_version '2.4.4-3'
 
     def setup_metrics
-      self.port ||= 27017 
+      self.port ||= 27017
       self.agent_name ||= "#{endpoint}:#{port}/#{database}"
     end
 
     def poll_cycle
       stats = mongodb_server_stats()
-      db_stats = mongodb_db_stats()
 
       #Network metrics
       report_counter_metric("Network/Bytes Out", "bytes/sec", stats["network"]["bytesOut"])
@@ -29,14 +27,14 @@ module NewRelic::MongodbAgent
       report_counter_metric("Network/Requests", "requests/sec", stats['network']['numRequests'])
 
       # Ops counters
-      report_counter_metric("Opcounters/Insert", "inserts",    stats['opcounters']['insert'])      
-      report_counter_metric("Opcounters/Query", "queries",     stats['opcounters']['query'])      
+      report_counter_metric("Opcounters/Insert", "inserts",    stats['opcounters']['insert'])
+      report_counter_metric("Opcounters/Query", "queries",     stats['opcounters']['query'])
       report_counter_metric("Opcounters/Update", "updates",    stats['opcounters']['update'])
       report_counter_metric("Opcounters/Delete", "deletes",    stats['opcounters']['delete'])
       report_counter_metric("Opcounters/GetMore", "getmores",  stats['opcounters']['getmore'])
-      report_counter_metric("Opcounters/Command", "commands",  stats['opcounters']['command'])  
+      report_counter_metric("Opcounters/Command", "commands",  stats['opcounters']['command'])
 
-      # Faults and assertions 
+      # Faults and assertions
       report_counter_metric("Extra/Page Faults", "pagefaults/sec",  stats['extra_info']['page_faults'])
       report_counter_metric("Asserts/Regular",           "regular",         stats['asserts']['regular'])
       report_counter_metric("Asserts/Warning",           "warning",         stats['asserts']['warning'])
@@ -52,13 +50,6 @@ module NewRelic::MongodbAgent
       report_metric("Cursors/Total Open",        "open",            stats['cursors']['totalOpen'])
       report_metric("Cursors/Client Cursors",    "size",            stats['cursors']['clientCursors_size'])
       report_metric("Cursors/Timed Out",         "timedout",        stats['cursors']['timedOut'])
-
-      # DBStats metrics
-      report_metric("DBStats/dataSize/Data Size",  "bytes",         db_stats['dataSize'])
-      report_metric("DBStats/dataSize/Index Size", "bytes",         db_stats['indexSize'])
-      report_metric("DBStats/Objects",             "Objects",       db_stats['objects'])
-      report_metric("DBStats/Collections",         "Collections",   db_stats['collections'])
-      report_metric("DBStats/Average Object Size", "Size",          db_stats['avgObjSize'])
 
       # Memory metrics retrived in MB from MongoDB, converted to bytes for New Relic graphing
       report_metric("Memory/Resident",             "bytes",            stats['mem']['resident'] * 1024 * 1024)
@@ -82,36 +73,11 @@ module NewRelic::MongodbAgent
       $stderr.puts "#{e}: #{e.backtrace.join("\n   ")}"
     end
 
-    def client
-      @client ||= begin
-                    client = MongoClient.new(endpoint, port.to_i, :slave_ok => true, :ssl => ssl || false)
-
-                    unless username.nil?
-                      client.db("admin").authenticate(username, password)
-                      client.db(database)
-                    else
-                      client.db(database)
-                    end
-                  end
-    rescue Mongo::AuthenticationError
-      $stderr.puts "Error authententicating to MongoDB database.  Requires a user on the admin database"
-      exit 1
-    rescue Mongo::ConnectionFailure
-      $stderr.puts "Error connecting to host port provided: #{endpoint}:#{port}"
-      exit 1
-    end
-
     def mongodb_server_stats
-      client.command('serverStatus' => 1)
-    end
-
-    def mongodb_db_stats
-      if !@client_stats.nil? && @client_stats_retrieved_at < Time.now - (60 * 60) # only retrieve size stats once / hour
-        @client_stats
-      else
-        @client_stats_retrieved_at = Time.now
-        @client_stats = client.stats
-      end
+      response = Net::HTTP.get_response(endpoint, "/serverStatus", port);
+      data = response.body
+      result = JSON.parse(data)
+      return result
     end
 
     def report_counter_metric(metric, type, value)

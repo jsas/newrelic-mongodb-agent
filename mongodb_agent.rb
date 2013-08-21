@@ -11,10 +11,10 @@ module NewRelic::MongodbAgent
     agent_guid "com.dermtap.mongo-agent"
     agent_config_options :endpoint, :username, :password, :database, :port, :agent_name
     agent_human_labels("MongoDB") { "#{agent_name}" }
-    agent_version '2.4.4-3'
+    agent_version '2.4.4-3-jsas'
 
     def setup_metrics
-      self.port ||= 27017
+      self.port ||= 28017
       self.agent_name ||= "#{endpoint}:#{port}/#{database}"
     end
 

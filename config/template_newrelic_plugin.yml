@@ -30,18 +30,5 @@ agents:
     # for best outcome, us a full mongodb path for your "name"
     agent_name: "localhost:27017/mongodb"
     endpoint: "localhost"
+    port: "28017"
     database: "sample-db"
-    ssl: false
-    #
-    #  If you are running MongoDB without authentication, please delete from now to the end
-    #  of the file.
-    #
-    #  If you *are* running authentication on MongoDB please enter the following.  In order 
-    #  to monitor MongoDB, on an authenticated environment, an admin user is required.  To 
-    #  add an admin user, just add the user to the admin database like so from the MongoDB CLI:
-    #
-    #  > use admin
-    #  > db.addUser("myadminuser", "myadminpassword")
-    #
-    username: "root"
-    password: ""
